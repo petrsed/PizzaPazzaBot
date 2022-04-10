@@ -46,6 +46,7 @@ async def send_welcome(message: types.Message):
     chat_id, username, text = message.chat.id, message.from_user.username, message.text
     if not check_user_presence(chat_id):
         create_user(chat_id, username)
+    await send_main_keyboard(chat_id, WELCOME_MESSAGE)
 
 
 @dp.message_handler()
