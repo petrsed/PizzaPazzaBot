@@ -8,3 +8,5 @@ LOGGING_ACTIONS = True
 BD_FILE_NAME = "pizzapazza.db"
 
 ADMIN_IDS = [1465154959]
+
+NOTICE_ID = -609844680 #id чата куда шлём уведомления
