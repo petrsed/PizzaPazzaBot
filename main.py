@@ -15,6 +15,8 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 
 async def send_main_keyboard(chat_id, text=MAIN_MENU_MESSAGE):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(MENU_BUTTON)
+    keyboard.add(BOOKING_BUTTON, CALL_BUTTON)
     await bot.send_message(chat_id, text, reply_markup=keyboard)
 
 async def send_admin_keyboard(chat_id, msg_id=None):
