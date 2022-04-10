@@ -12,6 +12,82 @@ from messages import *
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
+class AdminAddCategory(StatesGroup):
+    name = State()
+
+class AdminAddProduct(StatesGroup):
+    name = State()
+    description = State()
+    photo = State()
+    price = State()
+
+@dp.message_handler(state=AdminAddCategory.name)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    addcategory(message.text)
+    await send_main_keyboard(message.chat.id, "Категория добавлена!")
+    await state.finish()
+
+@dp.message_handler(state=AdminAddProduct.name)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    async with state.proxy() as state_data:
+        state_data["name"] = message.text
+    await bot.send_message(message.chat.id, "Введите описание товара:")
+    await AdminAddProduct.description.set()
+
+@dp.message_handler(state=AdminAddProduct.description)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    async with state.proxy() as state_data:
+        state_data["description"] = message.text
+    await bot.send_message(message.chat.id, "Введите стоимость товара:")
+    await AdminAddProduct.price.set()
+
+@dp.message_handler(state=AdminAddProduct.price)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    try:
+        price = int(message.text)
+    except Exception as e:
+        await bot.send_message(message.chat.id, "Неверный формат сообщения!")
+        return
+    async with state.proxy() as state_data:
+        state_data["price"] = price
+    await bot.send_message(message.chat.id, "Пришлите фотографию товара:")
+    await AdminAddProduct.photo.set()
+
+@dp.message_handler(state=AdminAddProduct.photo, content_types=["text", "photo"])
+async def send(message: types.Message, state: FSMContext):
+    try:
+        if message.text == REJECT_BUTTON:
+            await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+            await state.finish()
+            return
+    except Exception as e:
+        pass
+    async with state.proxy() as state_data:
+        category_id = state_data["category_id"]
+        name = state_data["name"]
+        description = state_data["description"]
+        price = state_data["price"]
+    addgood(category_id, name, description, price, message.photo[-1].file_id)
+    await send_main_keyboard(message.chat.id, "Товар добавлен!")
+    await state.finish()
+
+
 
 @dp.message_handler(content_types=["photo"])
 async def echo(message: types.Message):
@@ -26,7 +102,8 @@ async def send_main_keyboard(chat_id, text=MAIN_MENU_MESSAGE):
 async def send_admin_keyboard(chat_id, msg_id=None):
     if chat_id in ADMIN_IDS:
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("Параметры", callback_data=f"admin_parameters"))
+        markup.add(types.InlineKeyboardButton("Категории", callback_data=f"admin_categories"))
+        markup.add(types.InlineKeyboardButton("Товары", callback_data=f"admin_products"))
         if msg_id is None:
             await bot.send_message(chat_id, "Админ-панель:", reply_markup=markup)
         else:
@@ -52,6 +129,14 @@ async def send_menu(chat_id, text=MENU_TEXT, msg_id=None):
         await bot.send_message(chat_id, text, reply_markup=markup)
     else:
         await bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup)
+
+async def send_admin_delcategories(chat_id, msg_id=None):
+    categories = get_all_categories()
+    markup = types.InlineKeyboardMarkup()
+    for category in categories:
+        markup.add(types.InlineKeyboardButton(category[1], callback_data=f"admin_categoriesdel_{category[0]}"))
+    markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_categories"))
+    await bot.edit_message_text("Нажмите на категория для удаления:", chat_id, msg_id, reply_markup=markup)
 
 async def send_category_positions(chat_id, product_id, msg_id=None, delete_old_message=False):
     product = get_position_by_id(product_id)
@@ -88,6 +173,97 @@ async def query_show_list(call: types.CallbackQuery, state: FSMContext):
     elif data == "catalog":
         await bot.delete_message(chat_id, call.message.message_id)
         await send_menu(chat_id)
+    elif data == "admin_categories":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("Список категорий", callback_data=f"admin_categorieslist"))
+        markup.add(types.InlineKeyboardButton("Добавить категорию", callback_data=f"admin_categoriesadd"))
+        markup.add(types.InlineKeyboardButton("Удалить категорию", callback_data=f"admin_categoriesdel"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_return"))
+        await bot.edit_message_text("Категории:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif data == "admin_products":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("Список товаров", callback_data=f"admin_prodcutslist"))
+        markup.add(types.InlineKeyboardButton("Добавить товар", callback_data=f"admin_prodcutsadd"))
+        markup.add(types.InlineKeyboardButton("Удалить товар", callback_data=f"admin_prodcutsdel"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_return"))
+        await bot.edit_message_text("Товары:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif data == "admin_return":
+        await send_admin_keyboard(chat_id, call.message.message_id)
+    elif data == "admin_categorieslist":
+        categories = get_all_categories()
+        markup = types.InlineKeyboardMarkup()
+        for category in categories:
+            markup.add(types.InlineKeyboardButton(category[1], callback_data=f"none"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_categories"))
+        await bot.edit_message_text("Список категорий:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif data == "admin_categoriesadd":
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(REJECT_BUTTON)
+        await bot.send_message(chat_id, "Введите имя категории:", reply_markup=keyboard)
+        await AdminAddCategory.name.set()
+    elif data == "admin_categoriesdel":
+        await send_admin_delcategories(chat_id, call.message.message_id)
+    elif "admin_categoriesdel_" in data:
+        category_id = data.split("_")[2]
+        delcategory(category_id)
+        await send_admin_delcategories(chat_id, call.message.message_id)
+        await bot.send_message(chat_id, "Категория удалена!")
+    elif data == "admin_prodcutslist":
+        categories = get_all_categories()
+        markup = types.InlineKeyboardMarkup()
+        for category in categories:
+            markup.add(types.InlineKeyboardButton(category[1], callback_data=f"admin_prodcutslist_{category[0]}"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_products"))
+        await bot.edit_message_text("Список товаров:\n\nВыберите категорию:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif "admin_prodcutslist_" in data:
+        category_id = data.split("_")[2]
+        prodcuts = get_category_positions(category_id)
+        markup = types.InlineKeyboardMarkup()
+        for prodcut in prodcuts:
+            markup.add(types.InlineKeyboardButton(prodcut[2], callback_data=f"none"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_prodcutslist"))
+        await bot.edit_message_text("Список товаров:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif data == "admin_prodcutsadd":
+        categories = get_all_categories()
+        markup = types.InlineKeyboardMarkup()
+        for category in categories:
+            markup.add(types.InlineKeyboardButton(category[1], callback_data=f"admin_prodcutsadd_{category[0]}"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_products"))
+        await bot.edit_message_text("Добавление товара:\n\nВыберите категорию:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif "admin_prodcutsadd_" in data:
+        category_id = data.split("_")[2]
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(REJECT_BUTTON)
+        await bot.send_message(chat_id, "Введите имя товара:", reply_markup=keyboard)
+        await AdminAddProduct.name.set()
+        async with state.proxy() as state_data:
+            state_data["category_id"] = category_id
+    elif data == "admin_prodcutsdel":
+        categories = get_all_categories()
+        markup = types.InlineKeyboardMarkup()
+        for category in categories:
+            markup.add(types.InlineKeyboardButton(category[1], callback_data=f"admin_prodcutsdel_{category[0]}"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_products"))
+        await bot.edit_message_text("Удаление товара:\n\nВыберите категорию:", call.message.chat.id,
+                                    call.message.message_id, reply_markup=markup)
+    elif "admin_prodcutsdel_" in data:
+        category_id = data.split("_")[2]
+        prodcuts = get_category_positions(category_id)
+        markup = types.InlineKeyboardMarkup()
+        for prodcut in prodcuts:
+            markup.add(types.InlineKeyboardButton(prodcut[2], callback_data=f"admin_prodcutdel_{category_id}_{prodcut[0]}"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_prodcutsdel"))
+        await bot.edit_message_text("Нажмите на товар для удаления:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif "admin_prodcutdel_" in data:
+        category_id, product_id = data.split("_")[2], data.split("_")[3]
+        delproduct(product_id)
+        await bot.send_message(chat_id, "Товар удалён!")
+        prodcuts = get_category_positions(category_id)
+        markup = types.InlineKeyboardMarkup()
+        for prodcut in prodcuts:
+            markup.add(types.InlineKeyboardButton(prodcut[2], callback_data=f"admin_prodcutdel_{category_id}_{prodcut[0]}"))
+        markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_prodcutsdel"))
+        await bot.edit_message_text("Нажмите на товар для удаления:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
 @dp.message_handler(commands=['admin'])
 async def send_welcome(message: types.Message):

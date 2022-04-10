@@ -113,3 +113,34 @@ def get_category_by_id(category_id):
     cur.execute(f"""SELECT * FROM categories WHERE id = {category_id};""")
     res = cur.fetchone()
     return res
+
+def delcategory(category_id):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""DELETE FROM categories WHERE id = {category_id};""")
+    conn.commit()
+    return True
+
+def delproduct(product_id):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""DELETE FROM products WHERE id = {product_id};""")
+    conn.commit()
+    return True
+
+def addgood(category_id, name, description, price, photo):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""INSERT INTO products(category_id, name, description, photo, price) 
+       VALUES('{category_id}', '{name}', '{description}', '{photo}', {price});""")
+    conn.commit()
+    return True
+
+
+def addcategory(name):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""INSERT INTO categories(name) 
+       VALUES('{name}');""")
+    conn.commit()
+    return True
