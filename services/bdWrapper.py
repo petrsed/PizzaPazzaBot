@@ -84,3 +84,32 @@ def set_text(setting_id, value):
     cur.execute(f"""UPDATE texts SET value = '{value}' WHERE id = '{setting_id}'""")
     conn.commit()
     return True
+
+def get_all_categories():
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""SELECT * FROM categories;""")
+    res = cur.fetchall()
+    return res
+
+
+def get_category_positions(category_id):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""SELECT * FROM products WHERE category_id = {category_id};""")
+    res = cur.fetchall()
+    return res
+
+def get_position_by_id(product_id):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""SELECT * FROM products WHERE id = {product_id};""")
+    res = cur.fetchone()
+    return res
+
+def get_category_by_id(category_id):
+    conn = sqlite3.connect(BD_FILE_NAME)
+    cur = conn.cursor()
+    cur.execute(f"""SELECT * FROM categories WHERE id = {category_id};""")
+    res = cur.fetchone()
+    return res
