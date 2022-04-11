@@ -21,6 +21,42 @@ class AdminAddProduct(StatesGroup):
     photo = State()
     price = State()
 
+class UserBookingTable(StatesGroup):
+    amount_person = State()
+    time = State()
+
+@dp.message_handler(state=UserBookingTable.amount_person)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    try:
+        amount = int(message.text)
+    except Exception:
+        await bot.send_message(message.chat.id, ERROR_FORMAT_MESSAGE)
+        return
+    async with state.proxy() as state_data:
+        state_data["amount"] = amount
+    await bot.send_message(message.chat.id,ENTER_NEED_TIME)
+    await UserBookingTable.time.set()
+
+@dp.message_handler(state=UserBookingTable.time)
+async def send(message: types.Message, state: FSMContext):
+    if message.text == REJECT_BUTTON:
+        await send_main_keyboard(message.chat.id, ACTION_REJECTED)
+        await state.finish()
+        return
+    time = message.text
+    async with state.proxy() as state_data:
+        amount = state_data["amount"]
+    msg = BOOKING_NOTICE
+    msg = msg.replace("{AMOUNT_PERSONS}", str(amount))
+    msg = msg.replace("{TIME}", time)
+    await bot.send_message(NOTICE_ID, msg)
+    await send_main_keyboard(message.chat.id, TABLE_BOOKING_NOTICE)
+    await state.finish()
+
 @dp.message_handler(state=AdminAddCategory.name)
 async def send(message: types.Message, state: FSMContext):
     if message.text == REJECT_BUTTON:
@@ -302,6 +338,13 @@ async def echo(message: types.Message):
                    types.InlineKeyboardButton("5", callback_data="table_5"),
                    types.InlineKeyboardButton("6", callback_data="table_6"))
         await bot.send_message(chat_id, ENTER_TABLE_NUMBER, reply_markup=markup)
+    elif text == BOOKING_BUTTON:
+        keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        keyboard.add(REJECT_BUTTON)
+        await bot.send_message(chat_id, ENTER_AMOUNT_PERSON, reply_markup=keyboard)
+        await UserBookingTable.amount_person.set()
+
+
 
 
 if __name__ == '__main__':
