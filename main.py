@@ -264,6 +264,12 @@ async def query_show_list(call: types.CallbackQuery, state: FSMContext):
             markup.add(types.InlineKeyboardButton(prodcut[2], callback_data=f"admin_prodcutdel_{category_id}_{prodcut[0]}"))
         markup.add(types.InlineKeyboardButton(RETURN_BUTTON, callback_data=f"admin_prodcutsdel"))
         await bot.edit_message_text("Нажмите на товар для удаления:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif "table_" in data:
+        table_id = data.split("_")[1]
+        msg = WAITER_NOTICE
+        msg = msg.replace("{NUM}", str(table_id))
+        await bot.send_message(NOTICE_ID, msg)
+        await bot.send_message(chat_id, USER_WAITER_NOTICE)
 
 @dp.message_handler(commands=['admin'])
 async def send_welcome(message: types.Message):
@@ -287,6 +293,15 @@ async def echo(message: types.Message):
     chat_id, username, text = message.chat.id, message.from_user.username, message.text
     if text == MENU_BUTTON:
         await send_menu(chat_id)
+    elif text == CALL_BUTTON:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("1", callback_data="table_1"),
+                   types.InlineKeyboardButton("2", callback_data="table_2"),
+                   types.InlineKeyboardButton("3", callback_data="table_3"))
+        markup.add(types.InlineKeyboardButton("4", callback_data="table_4"),
+                   types.InlineKeyboardButton("5", callback_data="table_5"),
+                   types.InlineKeyboardButton("6", callback_data="table_6"))
+        await bot.send_message(chat_id, ENTER_TABLE_NUMBER, reply_markup=markup)
 
 
 if __name__ == '__main__':
